@@ -165,10 +165,11 @@ int main(int argc, char **argv) {
 void eval(char *cmdline) { 
   
   char *argv;
-  if (parseline(cmdline, &argv) == 1){
-    app_error("no command");
+  int bg = parseline(cmdline, &argv); //populate argv array and check if needs to run in background
+  if (bg == 1){
+    app_error("no command"); // empty argv
   } else {
-    
+    builtin_cmd(&argv);
   }
 
   return;
