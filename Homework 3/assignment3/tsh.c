@@ -3,10 +3,10 @@
  *
  * <Aidan Chin 33803321 & Luke _________>
  */
-#include <stddef.h>
 #include <ctype.h>
 #include <errno.h>
 #include <signal.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -162,18 +162,40 @@ int main(int argc, char **argv) {
  * background children don't receive SIGINT (SIGTSTP) from the kernel
  * when we type ctrl-c (ctrl-z) at the keyboard.
  */
-void eval(char *cmdline) { 
-  
-  char *argv;
-  int bg = parseline(cmdline, &argv); //populate argv array and check if needs to run in background
-  if (bg == 1){
-    app_error("no command"); // empty argv
-  } else {
-    builtin_cmd(&argv);
+void eval(char *cmdline) {
+
+  char *argv[MAXLINE];
+  char buffer[MAXLINE];
+  int bg;
+  pid_t pid;
+
+  strcpy(buffer, cmdline);
+  bg = parseline(
+      buffer,
+      argv); // populate argv array and check if needs to run in background
+  if (argv[0] == NULL)
+    return; // ignore empty line
+
+  if (!builtin_cmd(argv)) {    // check if a built in command
+    if ((pid = fork()) == 0) { // fork and execvp to run program
+      setpgid(0, 0);           // new process group and ID for child program
+      if (execvp(argv[0], argv) < 0) { // checks if child is successful and runs
+        app_error("Command not found"); // otherwise error
+      }
+    }
+    if (!bg) {
+      int status;
+      if (waitpid(pid, &status, 0) < 0) {
+        app_error("waitpid error");
+      }
+    } else { // add job and print out
+      addjob(jobs, pid, BG, cmdline);
+      printf("[%d] (%d) %s", pid2jid(pid), pid, cmdline);
+    }
   }
 
   return;
-   }
+}
 
 /*
  * parseline - Parse the command line and build the argv array.
@@ -239,16 +261,21 @@ int builtin_cmd(char **argv) {
   } // no command, return 0
   if (strcmp(argv[0], "jobs") == 0) { // lists running jobs
     listjobs(jobs);
+    return 1; // success
   }
   if (strcmp(argv[0], "quit") == 0) {
     exit(0); // quit
+    return 1;
   }
   if (strcmp(argv[0], "bg") == 0 ||
       strcmp(argv[0], "fg") == 0) { // changes job to background or foreground
     do_bgfg(argv);
+    return 1;
   }
-
-  return 0; /* not a builtin command */
+  if (!strcmp(argv[0], "&")) {
+    return 1; // Ignore singleton &
+  }
+  return 0; // not a builtin command
 }
 
 /*

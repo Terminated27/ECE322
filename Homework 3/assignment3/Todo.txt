@@ -1,4 +1,4 @@
-void eval(char *cmdline); ->working on, cant finish until sigint_handler and stuff is complete?
+void eval(char *cmdline); ->working on, i think its done
 int builtin_cmd(char **argv); -> working on  - Aidan (probably done?)
     - tsh should support the following built-in commands:
     1. The quit command terminates the shell. - done
@@ -9,6 +9,8 @@ int builtin_cmd(char **argv); -> working on  - Aidan (probably done?)
     and then runs it in the foreground.  The <job> argument can be either a PID or a JID.
 void do_bgfg(char **argv); - aidan (done maybe)
 void waitfg(pid_t pid); - aidan (done maybe)
+
+no promises on the code i completed, theres definitely something there though
 
 void sigchld_handler(int sig);
 void sigtstp_handler(int sig);
