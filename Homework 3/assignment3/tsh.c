@@ -180,6 +180,7 @@ void eval(char *cmdline) {
     if ((pid = fork()) == 0) { // fork and execvp to run program
       setpgid(0, 0);           // new process group and ID for child program
       if (execvp(argv[0], argv) < 0) { // checks if child is successful and runs
+        printf("%s ", cmdline);
         app_error("Command not found"); // otherwise error
       }
     }
