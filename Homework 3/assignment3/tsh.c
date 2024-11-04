@@ -1,7 +1,7 @@
 /*
  * tsh - A tiny shell program with job control
  *
- * <Aidan Chin 33803321 & Luke _________>
+ * <Aidan Chin 33803321 & Luke Rattanavijai>
  */
 #include <ctype.h>
 #include <errno.h>
@@ -344,21 +344,81 @@ void waitfg(pid_t pid) {
  *     available zombie children, but doesn't wait for any other
  *     currently running children to terminate.
  */
-void sigchld_handler(int sig) { return; }
-
+void sigchld_handler(int sig) {
+    int newerrno = errno;    /* Save errno to restore later */
+    pid_t pid;
+    int status;
+    
+    /* Reap all available zombie children
+     * WNOHANG: Don't block if no child has exited
+     * WUNTRACED: Also return if a child has stopped
+     */
+    while ((pid = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0) {
+        struct job_t *job = getjobpid(jobs, pid);
+        if (!job) {  //code should not get here
+            continue;
+        }
+        
+        // child terminated normally
+        if (WIFEXITED(status)) {
+            deletejob(jobs, pid); // remove job and proccess id
+        }
+        // child terminated by signal
+        else if (WIFSIGNALED(status)) {
+            printf("Job [%d] (%d) terminated by signal %d\n", 
+                   job->jid, pid, WTERMSIG(status));
+            deletejob(jobs, pid); // remove job and proccess id
+        }
+        // child stopped
+        else if (WIFSTOPPED(status)) {
+            printf("Job [%d] (%d) stopped by signal %d\n",
+                   job->jid, pid, WSTOPSIG(status));
+            job->state = ST;    // update job state to stopped
+        }
+    }
+    // no children to reap
+    if (pid < 0 && errno != ECHILD) {
+        unix_error("waitpid error");
+    }
+    
+    errno = newerrno;    /* Restore errno */
+    return;
+}
 /*
  * sigint_handler - The kernel sends a SIGINT to the shell whenver the
  *    user types ctrl-c at the keyboard.  Catch it and send it along
  *    to the foreground job.
  */
-void sigint_handler(int sig) { return; }
+void sigint_handler(int sig) {
+	int olderrno = errno;
+	pid_t pid = fgpid(jobs);
+
+	if (pid != 0) {
+		// sending the SIGINT to the entire foreground process group
+		kill(-pid,SIGINT);
+	}
+	errno = olderrno;
+return;
+ }
 
 /*
  * sigtstp_handler - The kernel sends a SIGTSTP to the shell whenever
  *     the user types ctrl-z at the keyboard. Catch it and suspend the
  *     foreground job by sending it a SIGTSTP.
  */
-void sigtstp_handler(int sig) { return; }
+void sigtstp_handler(int sig) {
+	int olderrno = errno;
+	pid_t pid = fgpid(jobs);
+
+	if (pid != 0) {
+		// send STGTSP to the entire foreground process group
+		kill(-pid, SIGTSTP);
+	}
+	errno = olderrno;
+
+
+return;
+ }
 
 /*********************
  * End signal handlers
